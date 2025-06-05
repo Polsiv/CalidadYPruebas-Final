@@ -56,7 +56,6 @@ public class LoginPage extends BasePage {
     public boolean loginFailedWithWarning() {
         return driver.findElements(warningMessage()).size() > 0;
     }
-
 }
 
 
