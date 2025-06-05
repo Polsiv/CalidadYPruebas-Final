@@ -3,11 +3,17 @@ package com.opencart.pages;
 import com.opencart.utils.WaitUtils;
 import org.openqa.selenium.By;
 import org.openqa.selenium.WebDriver;
+import org.openqa.selenium.support.ui.ExpectedConditions;
+import org.openqa.selenium.support.ui.WebDriverWait;
+import java.time.Duration;
 
 public class RegisterPage extends BasePage {
 
+    private WebDriverWait wait;
+
     public RegisterPage(WebDriver driver) {
         super(driver);
+        wait = new WebDriverWait(driver, Duration.ofSeconds(10)); // Espera de hasta 10s
     }
 
     private By input(String fieldId) {
@@ -62,14 +68,17 @@ public class RegisterPage extends BasePage {
     }
 
     public String getPageTitle() {
+        wait.until(ExpectedConditions.visibilityOfElementLocated(pageTitle()));
         return driver.findElement(pageTitle()).getText();
     }
 
     public String getSuccessParagraph() {
+        wait.until(ExpectedConditions.visibilityOfElementLocated(successParagraph()));
         return driver.findElement(successParagraph()).getText();
     }
 
     public boolean isContinueButtonDisplayed() {
+        wait.until(ExpectedConditions.visibilityOfElementLocated(continueButton()));
         return driver.findElement(continueButton()).isDisplayed();
     }
 

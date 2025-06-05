@@ -11,7 +11,11 @@ import org.testng.annotations.AfterMethod;
 import java.io.File;
 import java.io.IOException;
 import java.nio.file.Files;
+import java.nio.file.StandardCopyOption;
 import java.nio.file.Paths;
+import java.time.Duration;
+import org.openqa.selenium.support.ui.ExpectedConditions;
+import org.openqa.selenium.support.ui.WebDriverWait;
 import java.time.Duration;
 
 public class BaseTest {
@@ -45,7 +49,7 @@ public class BaseTest {
 
         try {
             Files.createDirectories(Paths.get("screenshots"));
-            Files.copy(screenshot.toPath(), Paths.get(path));
+            Files.copy(screenshot.toPath(), Paths.get(path), StandardCopyOption.REPLACE_EXISTING);
         } catch (IOException e) {
             e.printStackTrace();
         }

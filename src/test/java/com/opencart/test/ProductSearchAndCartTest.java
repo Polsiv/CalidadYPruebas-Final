@@ -6,84 +6,96 @@ import com.opencart.pages.SearchPage;
 import com.opencart.utils.Constants;
 import com.opencart.utils.Excel;
 import com.opencart.utils.Verify;
+
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.testng.annotations.Test;
+
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+
 import static com.opencart.utils.Verify.verify;
 import static org.testng.Assert.assertTrue;
 
 public class ProductSearchAndCartTest extends BaseTest {
 
-    // Este test tiene prioridad 4 y depende de que se haya abierto la URL base primero
+    private static final Logger logger = LoggerFactory.getLogger(ProductSearchAndCartTest.class);
+
     @Test(priority = 4, dependsOnGroups = {"openUrlGroup"})
     public void searchAddAndVerifyProductsInCart() {
+        logger.info("Iniciando prueba: searchAddAndVerifyProductsInCart");
 
-        // Lee los productos a buscar desde la hoja "ProductosBusqueda" del Excel
         List<Map<String, String>> products = Excel.readSheet("ProductosBusqueda");
+        logger.info("Total de productos leídos desde Excel: {}", products.size());
 
-        // Lista para guardar los productos que fueron agregados al carrito con éxito
         List<String> addedProducts = new ArrayList<>();
 
-        // PASOS 1-3: Buscar y agregar cada producto al carrito
         for (Map<String, String> row : products) {
             String product = row.get("Producto");
+            logger.info("Buscando y agregando producto: {}", product);
 
-            // Abre la página principal
-            driver.get(Constants.BASE_URL);
+            try {
+                driver.get(Constants.BASE_URL);
+                logger.debug("Página principal cargada");
 
-            // Instancia de la página de búsqueda
-            SearchPage searchPage = new SearchPage(driver);
+                SearchPage searchPage = new SearchPage(driver);
+                searchPage.search(product);
+                logger.debug("Búsqueda ejecutada para: {}", product);
 
-            // Realiza la búsqueda del producto
-            searchPage.search(product);
+                verify(() -> assertTrue(
+                        searchPage.productIsVisible(product),
+                        "El producto '" + product + "' no se encontró en los resultados."
+                ));
+                logger.info("Producto '{}' encontrado en los resultados", product);
 
-            // Verifica que el producto esté visible en los resultados
-            verify(() -> assertTrue(
-                    searchPage.productIsVisible(product),
-                    "El producto '" + product + "' no se encontró en los resultados."
-            ));
+                searchPage.openProduct(product);
+                ProductPage productPage = new ProductPage(driver);
 
-            // Abre el detalle del producto
-            searchPage.openProduct(product);
+                productPage.setQuantity(1);
+                productPage.addToCart();
+                logger.info("Producto '{}' agregado al carrito", product);
 
-            // Instancia de la página del producto
-            ProductPage productPage = new ProductPage(driver);
+                addedProducts.add(product);
 
-            // Establece la cantidad y lo agrega al carrito
-            productPage.setQuantity(1);
-            productPage.addToCart();
-
-            // Agrega el nombre del producto a la lista de éxitos
-            addedProducts.add(product);
-        }
-
-        // PASO 4: Verificar los productos en el carrito
-        driver.get(Constants.BASE_URL + Constants.CART_ROUTE); // Abre la página del carrito
-        CartPage cartPage = new CartPage(driver);
-
-        // Obtiene todos los productos visibles en el carrito
-        List<String> productsInCart = cartPage.getAllProductsInCart();
-
-        // Lista para guardar los productos verificados con éxito
-        List<String> successList = new ArrayList<>();
-
-        for (String product : addedProducts) {
-            boolean exists = productsInCart.contains(product);
-            verify(() -> assertTrue(exists, "El producto '" + product + "' no se encontró en el carrito."));
-            if (exists) {
-                successList.add(product);
+            } catch (Exception e) {
+                logger.error("Error al procesar el producto '{}': {}", product, e.getMessage(), e);
+                takeScreenshot("error_producto_" + product + "_" + System.currentTimeMillis());
+                throw e;
             }
         }
 
-        // PASO 5: Escribir los productos exitosamente agregados en un Excel de salida
-        Excel.writeProductsToExcel(Constants.OUTPUT_EXCEL, successList);
+        try {
+            driver.get(Constants.BASE_URL + Constants.CART_ROUTE);
+            logger.debug("Navegación al carrito completada");
 
-        // Captura de pantalla final del carrito
-        takeScreenshot("final_carrito");
+            CartPage cartPage = new CartPage(driver);
+            List<String> productsInCart = cartPage.getAllProductsInCart();
 
-        // Ejecuta todas las verificaciones acumuladas
+            List<String> successList = new ArrayList<>();
+            for (String product : addedProducts) {
+                boolean exists = productsInCart.contains(product);
+                verify(() -> assertTrue(exists, "El producto '" + product + "' no se encontró en el carrito."));
+                if (exists) {
+                    successList.add(product);
+                    logger.info("Producto '{}' verificado en el carrito", product);
+                } else {
+                    logger.warn("Producto '{}' no se encontró en el carrito", product);
+                }
+            }
+
+            Excel.writeProductsToExcel(Constants.OUTPUT_EXCEL, successList);
+            logger.info("Productos exitosamente verificados escritos en el Excel de salida");
+
+            takeScreenshot("final_carrito");
+            logger.info("Captura de pantalla del carrito tomada");
+
+        } catch (Exception e) {
+            logger.error("Error al verificar productos en el carrito: {}", e.getMessage(), e);
+            throw e;
+        }
+
         Verify.verifyAll();
+        logger.info("Prueba searchAddAndVerifyProductsInCart finalizada");
     }
 }
-

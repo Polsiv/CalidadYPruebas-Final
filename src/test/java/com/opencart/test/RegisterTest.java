@@ -1,76 +1,84 @@
 package com.opencart.test;
 
 import com.opencart.pages.RegisterPage;
+import com.opencart.utils.Constants;
+import com.opencart.utils.Excel;
+
 import static com.opencart.utils.Verify.verify;
 import static com.opencart.utils.Verify.verifyAll;
 import static org.testng.Assert.assertEquals;
 import static org.testng.Assert.assertTrue;
-import com.opencart.utils.Constants;
-import com.opencart.utils.Excel;
+
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.testng.annotations.Test;
+
 import java.util.List;
 import java.util.Map;
 
 public class RegisterTest extends BaseTest {
 
-    // Este test tiene prioridad 2 y depende del grupo "openUrlGroup"
+    private static final Logger logger = LoggerFactory.getLogger(RegisterTest.class);
+
     @Test(priority = 2, dependsOnGroups = {"openUrlGroup"})
     public void registerUsersFromExcel() {
+        logger.info("Iniciando prueba: registerUsersFromExcel");
 
-        // Lee los datos de la hoja "UsuariosRegistro" del Excel
-        // Cada fila se convierte en un Map con claves como "FirstName", "LastName", etc.
         List<Map<String, String>> users = Excel.readSheet("UsuariosRegistro");
+        logger.info("Total de usuarios leídos desde Excel: {}", users.size());
 
-        // Itera sobre cada usuario del Excel
         for (Map<String, String> user : users) {
+            String email = user.get("Email");
+            String nombre = user.get("FirstName");
+            logger.info("Iniciando registro para: {} ({})", nombre, email);
 
-            // Navega a la página de registro
-            driver.get(Constants.BASE_URL + Constants.REGISTER_ROUTE);
+            try {
+                driver.get(Constants.BASE_URL + Constants.REGISTER_ROUTE);
+                logger.debug("Navegación a página de registro realizada");
 
-            // Crea una instancia de la página de registro
-            RegisterPage registerPage = new RegisterPage(driver);
+                RegisterPage registerPage = new RegisterPage(driver);
 
-            // Rellena el formulario de registro con los datos del usuario
-            registerPage.fillForm(
-                    user.get("FirstName"),
-                    user.get("LastName"),
-                    user.get("Email"),
-                    user.get("Telephone"),
-                    user.get("Password"),
-                    user.get("ConfirmPassword")
-            );
+                logger.debug("Llenando formulario con datos del usuario");
+                registerPage.fillForm(
+                        user.get("FirstName"),
+                        user.get("LastName"),
+                        email,
+                        user.get("Telephone"),
+                        user.get("Password"),
+                        user.get("ConfirmPassword")
+                );
 
-            // Envía el formulario
-            registerPage.submit();
+                logger.debug("Enviando formulario");
+                registerPage.submit();
 
-            // Verifica que el título de la página sea "Account"
-            verify(() -> assertEquals(registerPage.getPageTitle(), "Account", "El título del h1 no es correcto"));
+                logger.debug("Ejecutando verificaciones");
+                verify(() -> assertEquals(registerPage.getPageTitle(), "Account", "El título del h1 no es correcto"));
+                verify(() -> assertEquals(
+                        registerPage.getSuccessParagraph(),
+                        "Congratulations! Your new account has been successfully created!",
+                        "El mensaje de éxito no coincide"
+                ));
+                verify(() -> assertTrue(registerPage.isContinueButtonDisplayed(), "El botón Continue no está visible"));
+                verify(() -> assertTrue(driver.getCurrentUrl().contains("account/success"),
+                        "La URL no termina en account/success"));
+                verifyAll();
 
-            // Verifica que el párrafo de éxito tenga el mensaje esperado
-            verify(() -> assertEquals(
-                    registerPage.getSuccessParagraph(),
-                    "Congratulations! Your new account has been successfully created!",
-                    "El mensaje de éxito no coincide"
-            ));
+                takeScreenshot("registro_" + nombre + "_" + System.currentTimeMillis());
+                logger.info("Registro exitoso para el usuario: {}", email);
 
-            // Verifica que el botón "Continue" esté visible
-            verify(() -> assertTrue(registerPage.isContinueButtonDisplayed(), "El botón Continue no está visible"));
+                registerPage.logout();
+                logger.debug("Logout realizado para el usuario: {}", email);
 
-            // Verifica que la URL contenga "account/success", indicando éxito en el registro
-            verify(() -> assertTrue(driver.getCurrentUrl().contains("account/success"),
-                    "La URL no termina en account/success"));
+                driver.get(Constants.BASE_URL + Constants.REGISTER_ROUTE);
+                logger.debug("Página de registro recargada para el siguiente usuario");
 
-            // Ejecuta todas las verificaciones acumuladas
-            verifyAll();
-
-            // Toma una captura de pantalla con el nombre del usuario y un timestamp
-            takeScreenshot("registro_" + user.get("FirstName") + "_" + System.currentTimeMillis());
-
-            // Cierra sesión para limpiar el estado antes del siguiente registro
-            registerPage.logout();
-
-            // Recarga la página de registro para el siguiente usuario
-            driver.get(Constants.BASE_URL + "index.php?route=account/register");
+            } catch (Exception e) {
+                logger.error("Error durante el registro del usuario {}", email);
+                takeScreenshot("registro_error_" + nombre + "_" + System.currentTimeMillis());
+                throw e;
+            }
         }
+
+        logger.info("Prueba registerUsersFromExcel finalizada.");
     }
 }
